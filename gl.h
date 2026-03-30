@@ -31,19 +31,76 @@
 
 // DOCUMENTATION
 //
+// gl.h is a single-header software rasterizer library in the style of the stb libraries.
+// It provides a minimal OpenGL-like API for 3D rendering to memory buffers.
+//
 // Limitations:
+//   - Software rendering only (no hardware acceleration)
+//   - Triangles only (no lines, points, or other primitives yet)
+//   - No texturing or advanced shading
+//   - No anti-aliasing
+//   - Single-threaded
+//   - Fixed-function pipeline only
 //
 // Basic usage:
+//   uint32_t framebuffer[640 * 480];
+//   gl_init(640, 480, framebuffer, NULL);
+//   
+//   // Set up 3D view
+//   gl_state.projection = gl_perspective(45.0f, 640.0f/480.0f, 0.1f, 100.0f);
+//   gl_state.view = gl_lookat((gl_vec3){0,0,5}, (gl_vec3){0,0,0}, (gl_vec3){0,1,0});
+//   
+//   gl_clear(0x000000FF);  // Clear to black
+//   
+//   // Draw red triangle
+//   gl_begin(GL_TRIANGLES);
+//   gl_color_3f(1.0f, 0.0f, 0.0f);
+//   gl_vertex_3f( 0.0f,  1.0f, 0.0f);
+//   gl_vertex_3f(-1.0f, -1.0f, 0.0f);
+//   gl_vertex_3f( 1.0f, -1.0f, 0.0f);
+//   gl_end();
+//   
+//   // framebuffer now contains the rendered triangle
+//   gl_shutdown();
 //
 // Standard parameters:
+//   Most functions follow OpenGL conventions:
+//   - Colors are specified as floats in range [0.0, 1.0]
+//   - Matrices are column-major 4x4 or 3x3
+//   - Angles are in degrees for perspective, radians for math functions
+//   - Coordinate system: right-handed, Y-up
+//   - Depth buffer range: [0.0, 1.0] where 1.0 is far
 //
 // ===========================================================================
 //
 // Philosophy:
+//   This library prioritizes simplicity and ease of integration over performance.
+//   It's designed for:
+//   - Learning 3D graphics concepts
+//   - Simple 3D rendering in games/demos where GPU isn't available
+//   - Software fallback rendering
+//   - Embedded systems without GPU support
+//   
+//   The API intentionally mimics early OpenGL to make it familiar to graphics
+//   programmers. All rendering is done in software using barycentric coordinate
+//   triangle rasterization with depth testing.
 //
 // ===========================================================================
 //
 // Additional configurations:
+//   #define GL_MALLOC(sz)     - Override memory allocation (default: malloc)
+//   #define GL_FREE(ptr)      - Override memory deallocation (default: free)
+//   #define GL_NO_STDINT      - Don't include stdint.h
+//   #define GL_NO_MATH        - Don't include math.h (you must provide sqrt, etc.)
+//
+// Memory management:
+//   gl_init() can accept user-provided buffers or allocate its own:
+//   - gl_init(w, h, my_color_buf, my_depth_buf)  // Use provided buffers
+//   - gl_init(w, h, NULL, NULL)                  // Library allocates buffers
+//   - gl_init(w, h, my_color_buf, NULL)         // Mix of both
+//   
+//   Call gl_shutdown() to free any library-allocated memory.
+//   User-provided buffers are never freed by the library.
 
 #ifndef GL_NO_STDINT
 #include <stdint.h>
