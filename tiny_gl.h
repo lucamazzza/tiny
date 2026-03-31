@@ -1,5 +1,5 @@
-/* gl - v0.1 - public domain graphics library - https://mazluc.ch/tiny
-                             no warranty implied; use at your own risk
+/* tiny_gl - v0.1 - public domain graphics library - https://mazluc.ch/tiny
+                                  no warranty implied; use at your own risk
 
    Do this:
       #define GL_IMPLEMENTATION
