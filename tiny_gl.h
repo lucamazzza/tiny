@@ -26,8 +26,13 @@
    ============================    Contributors    =========================
 
 */
+
 #ifndef GL_DEFINITIONS
 #define GL_DEFINITIONS
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // DOCUMENTATION
 //
@@ -36,7 +41,6 @@
 //
 // Limitations:
 //   - Software rendering only (no hardware acceleration)
-//   - Triangles only (no lines, points, or other primitives yet)
 //   - No texturing or advanced shading
 //   - No anti-aliasing
 //   - Single-threaded
@@ -110,6 +114,10 @@
 #include <math.h>
 #endif
 
+#ifndef GL_NO_STDLIB
+#include <stdlib.h>
+#endif
+
 #ifndef GL_MALLOC
 #define GL_MALLOC(sz) malloc(sz)
 #endif
@@ -118,61 +126,76 @@
 #define GL_FREE(p) free(p)
 #endif
 
+// Render Mode macros
 #define GL_TRIANGLES 0
 #define GL_LINES     1
 #define GL_POINTS    2
 
+// Matrix Mode macros
+#define GL_MODELVIEW  0
+#define GL_PROJECTION 1
+
+// Culling macros
+#define GL_KEEP 0
+#define GL_CULL 1
+
+// Matrix stack
+#ifndef GL_MATRIX_STACK_DEPTH
+#define GL_MATRIX_STACK_DEPTH 32
+#endif
+
 typedef struct {
     union {
-        float m[9];
-        struct {
-            float v0, v1, v2;
-            float v3, v4, v5;
-            float v6, v7, v8;
-        };
+      float m[9];
+      struct {
+        float v0, v1, v2;
+        float v3, v4, v5;
+        float v6, v7, v8;
+      };
     };
 } gl_mat3;
 
 typedef struct {
     union {
-        float m[16];
-        struct {
-            float v0, v1, v2, v3;
-            float v4, v5, v6, v7;
-            float v8, v9, v10, v11;
-            float v12, v13, v14, v15;
-        };
+      float m[16];
+      struct {
+        float v0, v1, v2, v3;
+        float v4, v5, v6, v7;
+        float v8, v9, v10, v11;
+        float v12, v13, v14, v15;
+      };
     };
 } gl_mat4;
 
 typedef struct {
     union {
-        float v[3];
-        struct {
-            float x, y, z;
-        };
-        struct {
-            float r, g, b;
-        };
+      float v[3];
+      struct {
+        float x, y, z;
+      };
+      struct {
+        float r, g, b;
+      };
     };
 } gl_vec3;
 
 typedef struct {
     union {
-        float v[4];
-        struct {
-            float x, y, z, w;
-        };
-        struct {
-            float r, g, b, a;
-        };
+      float v[4];
+      struct {
+        float x, y, z, w;
+      };
+      struct {
+        float r, g, b, a;
+      };
     };
 } gl_vec4;
 
 gl_mat4 gl_identity(void);
-gl_mat3 gl_mul(gl_mat3 a, gl_mat3 b);
-gl_mat4 gl_mul(gl_mat4 a, gl_mat4 b);
+gl_mat3 gl_mul3(gl_mat3 a, gl_mat3 b);
+gl_mat4 gl_mul4(gl_mat4 a, gl_mat4 b);
 gl_mat4 gl_perspective(float fov, float aspect, float near, float far);
+gl_mat4 gl_ortho(float left, float right, float bottom, float top, float near, float far);
 gl_mat4 gl_lookat(gl_vec3 eye, gl_vec3 center, gl_vec3 up);
 gl_vec3 gl_vec3_normalize(gl_vec3 v);
 gl_vec3 gl_vec3_cross(gl_vec3 a, gl_vec3 b);
@@ -187,13 +210,19 @@ void gl_color_3f(float r, float g, float b);
 void gl_color_3fv(gl_vec3 c);
 void gl_begin(int prim_type);
 void gl_end(void);
-void gl_viewport(int width, int height, uint32_t *color_ptr, float *depth_ptr);
+void gl_viewport(int width, int height);
+void gl_matmode(int mode);
+void gl_bindmat(void);
+void gl_unbindmat(void);
+void gl_bindident(void);
+void gl_cullfaces(int enable);
 void gl_shutdown(void);
 
-#endif  // GL_DEFINITIONS
+#ifdef __cplusplus
+}
+#endif
 
-//TODO: Remove once done
-#define GL_IMPLEMENTATION
+#endif  // GL_DEFINITIONS
 
 #ifdef GL_IMPLEMENTATION
 
@@ -210,10 +239,16 @@ static struct {
     int      vertex_count;
     int      primitive_type;
     int      owns_color_buf, owns_depth_buf;
-} gl_state;
+    int      matrix_mode;
+    gl_mat4  model_stack[GL_MATRIX_STACK_DEPTH];
+    gl_mat4  projection_stack[GL_MATRIX_STACK_DEPTH];
+    int      model_stack_ptr;
+    int      projection_stack_ptr;
+    int      backface_culling;
+} mgl_state;
 
 static gl_vec4 mgl_transform_vert(float x, float y, float z) {
-    gl_mat4 mvp = gl_mul(gl_state.projection, gl_mul(gl_state.view, gl_state.model));
+    gl_mat4 mvp = gl_mul4(mgl_state.projection, gl_mul4(mgl_state.view, mgl_state.model));
     gl_vec4 v;
     v.x = x * mvp.v0 + y * mvp.v4 + z * mvp.v8 + mvp.v12;
     v.y = x * mvp.v1 + y * mvp.v5 + z * mvp.v9 + mvp.v13;
@@ -224,8 +259,8 @@ static gl_vec4 mgl_transform_vert(float x, float y, float z) {
         v.y /= v.w;
         v.z /= v.w;
     }
-    v.x = (v.x + 1.0f) * 0.5f * gl_state.width;
-    v.y = (1.0f - v.y) * 0.5f * gl_state.height;
+    v.x = (v.x + 1.0f) * 0.5f * mgl_state.width;
+    v.y = (1.0f - v.y) * 0.5f * mgl_state.height;
     return v;
 }
 
@@ -233,13 +268,53 @@ inline static float mgl_edge_func(gl_vec4 a, gl_vec4 b, float px, float py) {
     return (px - a.x) * (b.y - a.y) - (py - a.y) * (b.x - a.x);
 }
 
+static void mgl_draw_line(gl_vec4 v0, gl_vec4 v1) {
+    int x0 = (int)v0.x, y0 = (int)v0.y;
+    int x1 = (int)v1.x, y1 = (int)v1.y;
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy, e2;
+    
+    for (;;) {
+        if (x0 >= 0 && x0 < mgl_state.width && y0 >= 0 && y0 < mgl_state.height) {
+            float t = (dx != 0) ? (float)(x0 - (int)v0.x) / (float)dx : 0.0f;
+            float z = v0.z + t * (v1.z - v0.z);
+            int idx = y0 * mgl_state.width + x0;
+            if (z < mgl_state.depth_buf[idx]) {
+                mgl_state.depth_buf[idx] = z;
+                mgl_state.color_buf[idx] = mgl_state.cur_color;
+            }
+        }
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+static void mgl_draw_point(gl_vec4 v) {
+    int x = (int)v.x;
+    int y = (int)v.y;
+    if (x >= 0 && x < mgl_state.width && y >= 0 && y < mgl_state.height) {
+        int idx = y * mgl_state.width + x;
+        if (v.z < mgl_state.depth_buf[idx]) {
+            mgl_state.depth_buf[idx] = v.z;
+            mgl_state.color_buf[idx] = mgl_state.cur_color;
+        }
+    }
+}
+
 void mgl_rasterize_triangle(gl_vec4 v0, gl_vec4 v1, gl_vec4 v2) {
+    if (mgl_state.backface_culling) {
+        float area = mgl_edge_func(v0, v1, v2.x, v2.y);
+        if (area <= 0) return;
+    }
     int min_x = (int)fminf(v0.x, fminf(v1.x, v2.x));
     int max_x = (int)fmaxf(v0.x, fmaxf(v1.x, v2.x));
     int min_y = (int)fminf(v0.y, fminf(v1.y, v2.y));
     int max_y = (int)fmaxf(v0.y, fmaxf(v1.y, v2.y));
-    if (min_x < 0) min_x = 0; if (max_x >= gl_state.width)  max_x = gl_state.width  - 1;
-    if (min_y < 0) min_y = 0; if (max_y >= gl_state.height) max_y = gl_state.height - 1;
+    if (min_x < 0) min_x = 0; if (max_x >= mgl_state.width)  max_x = mgl_state.width  - 1;
+    if (min_y < 0) min_y = 0; if (max_y >= mgl_state.height) max_y = mgl_state.height - 1;
     float area = mgl_edge_func(v0, v1, v2.x, v2.y);
     if (area == 0) return;
     if (fabs(area) < 1e-6f) return;
@@ -252,10 +327,10 @@ void mgl_rasterize_triangle(gl_vec4 v0, gl_vec4 v1, gl_vec4 v2) {
             float w2 = mgl_edge_func(v0, v1, px, py) / area;
             if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
                 float z = w0 * v0.z + w1 * v1.z + w2 * v2.z;
-                int idx = y * gl_state.width + x;
-                if (z < gl_state.depth_buf[idx]) {
-                    gl_state.depth_buf[idx] = z;
-                    gl_state.color_buf[idx] = gl_state.cur_color;
+                int idx = y * mgl_state.width + x;
+                if (z < mgl_state.depth_buf[idx]) {
+                    mgl_state.depth_buf[idx] = z;
+                    mgl_state.color_buf[idx] = mgl_state.cur_color;
                 }
             }
         }
@@ -273,7 +348,7 @@ gl_mat4 gl_identity(void) {
     return mat;
 }
 
-gl_mat4 gl_mul(gl_mat4 a, gl_mat4 b) {
+gl_mat4 gl_mul4(gl_mat4 a, gl_mat4 b) {
     gl_mat4 res;
     const float *A = a.m;
     const float *B = b.m;
@@ -288,7 +363,7 @@ gl_mat4 gl_mul(gl_mat4 a, gl_mat4 b) {
     return res;
 }
 
-gl_mat3 gl_mul(gl_mat3 a, gl_mat3 b) {
+gl_mat3 gl_mul3(gl_mat3 a, gl_mat3 b) {
     gl_mat3 res;
     const float *A = a.m;
     const float *B = b.m;
@@ -310,6 +385,18 @@ gl_mat4 gl_perspective(float fov, float aspect, float near, float far) {
     res.m[10]          = -(far + near) / (far - near);
     res.m[11]          = -1.0f;
     res.m[14]          = -(2.0f * far * near) / (far - near);
+    return res;
+}
+
+gl_mat4 gl_ortho(float left, float right, float bottom, float top, float near, float far) {
+    gl_mat4 res = {0};
+    res.m[0]  = 2.0f / (right - left);
+    res.m[5]  = 2.0f / (top - bottom);
+    res.m[10] = -2.0f / (far - near);
+    res.m[12] = -(right + left) / (right - left);
+    res.m[13] = -(top + bottom) / (top - bottom);
+    res.m[14] = -(far + near) / (far - near);
+    res.m[15] = 1.0f;
     return res;
 }
 
@@ -356,49 +443,53 @@ float gl_vec3_dot(gl_vec3 a, gl_vec3 b) {
 }
 
 void gl_init(int width, int height, void *color_buf, void *depth_buf) {
-    gl_state.width  = width;
-    gl_state.height = height;
-    gl_state.vertex_count = 0;
-    gl_state.primitive_type = GL_TRIANGLES;
+    mgl_state.width  = width;
+    mgl_state.height = height;
+    mgl_state.vertex_count = 0;
+    mgl_state.primitive_type = GL_TRIANGLES;
     if (color_buf) {
-        gl_state.color_buf = (uint32_t*)color_buf;
-        gl_state.owns_color_buf = 0;
+        mgl_state.color_buf = (uint32_t*)color_buf;
+        mgl_state.owns_color_buf = 0;
     } else {
-        gl_state.color_buf = (uint32_t*)GL_MALLOC(width * height * sizeof(uint32_t));
-        gl_state.owns_color_buf = 1;
+        mgl_state.color_buf = (uint32_t*)GL_MALLOC(width * height * sizeof(uint32_t));
+        mgl_state.owns_color_buf = 1;
     }
     if (depth_buf) {
-        gl_state.depth_buf = (float*)depth_buf;
-        gl_state.owns_depth_buf = 0;
+        mgl_state.depth_buf = (float*)depth_buf;
+        mgl_state.owns_depth_buf = 0;
     } else {
-        gl_state.depth_buf = (float*)GL_MALLOC(width * height * sizeof(float));
-        gl_state.owns_depth_buf = 1;
+        mgl_state.depth_buf = (float*)GL_MALLOC(width * height * sizeof(float));
+        mgl_state.owns_depth_buf = 1;
     }
-    gl_state.model      = gl_identity();
-    gl_state.view       = gl_identity();
-    gl_state.projection = gl_identity();
-    gl_state.cur_color  = 0xFFFFFFFF;
+    mgl_state.model      = gl_identity();
+    mgl_state.view       = gl_identity();
+    mgl_state.projection = gl_identity();
+    mgl_state.cur_color  = 0xFFFFFFFF;
+    mgl_state.matrix_mode = GL_MODELVIEW;
+    mgl_state.model_stack_ptr = 0;
+    mgl_state.projection_stack_ptr = 0;
+    mgl_state.backface_culling = 0;
 }
 
 void gl_clear(unsigned int color) {
-    int count = gl_state.width * gl_state.height;
+    int count = mgl_state.width * mgl_state.height;
     for (int i = 0; i < count; ++i) {
-        gl_state.color_buf[i] = color;
-        if (gl_state.depth_buf) gl_state.depth_buf[i] = 1.0f;
+        mgl_state.color_buf[i] = color;
+        if (mgl_state.depth_buf) mgl_state.depth_buf[i] = 1.0f;
     }
 }
 
 void gl_viewport(int width, int height) {
-    gl_state.width  = width;
-    gl_state.height = height;
+    mgl_state.width  = width;
+    mgl_state.height = height;
 }
 
 void gl_vertex_3f(float x, float y, float z) {
-    gl_state.vertex_cache[gl_state.vertex_count] = mgl_transform_vert(x, y, z);
-    gl_state.vertex_count++;
-    if (gl_state.primitive_type == GL_TRIANGLES && gl_state.vertex_count == 3) {
-        mgl_rasterize_triangle(gl_state.vertex_cache[0], gl_state.vertex_cache[1], gl_state.vertex_cache[2]);
-        gl_state.vertex_count = 0;
+    mgl_state.vertex_cache[mgl_state.vertex_count] = mgl_transform_vert(x, y, z);
+    mgl_state.vertex_count++;
+    if (mgl_state.primitive_type == GL_TRIANGLES && mgl_state.vertex_count == 3) {
+        mgl_rasterize_triangle(mgl_state.vertex_cache[0], mgl_state.vertex_cache[1], mgl_state.vertex_cache[2]);
+        mgl_state.vertex_count = 0;
     }
 }
 
@@ -410,7 +501,7 @@ void gl_color_3f(float r, float g, float b) {
     uint8_t ir = (uint8_t)(r * 255.0f);
     uint8_t ig = (uint8_t)(g * 255.0f);
     uint8_t ib = (uint8_t)(b * 255.0f);
-    gl_state.cur_color = (0xFF << 24) | (ir << 16) | (ig << 8) | ib;
+    mgl_state.cur_color = (0xFF << 24) | (ir << 16) | (ig << 8) | ib;
 }
 
 void gl_color_3fv(gl_vec3 c) {
@@ -418,19 +509,59 @@ void gl_color_3fv(gl_vec3 c) {
 }
 
 void gl_begin(int prim_type) {
-    gl_state.primitive_type = prim_type;
-    gl_state.vertex_count = 0;
+    mgl_state.primitive_type = prim_type;
+    mgl_state.vertex_count = 0;
 }
 
 void gl_end(void) {
-    gl_state.vertex_count = 0;
+    mgl_state.vertex_count = 0;
+}
+
+void gl_matmode(int mode) {
+    mgl_state.matrix_mode = mode;
+}
+
+void gl_bindmat(void) {
+    if (mgl_state.matrix_mode == GL_MODELVIEW) {
+        if (mgl_state.model_stack_ptr < GL_MATRIX_STACK_DEPTH) {
+            mgl_state.model_stack[mgl_state.model_stack_ptr++] = mgl_state.model;
+        }
+    } else if (mgl_state.matrix_mode == GL_PROJECTION) {
+        if (mgl_state.projection_stack_ptr < GL_MATRIX_STACK_DEPTH) {
+            mgl_state.projection_stack[mgl_state.projection_stack_ptr++] = mgl_state.projection;
+        }
+    }
+}
+
+void gl_unbindmat(void) {
+    if (mgl_state.matrix_mode == GL_MODELVIEW) {
+        if (mgl_state.model_stack_ptr > 0) {
+            mgl_state.model = mgl_state.model_stack[--mgl_state.model_stack_ptr];
+        }
+    } else if (mgl_state.matrix_mode == GL_PROJECTION) {
+        if (mgl_state.projection_stack_ptr > 0) {
+            mgl_state.projection = mgl_state.projection_stack[--mgl_state.projection_stack_ptr];
+        }
+    }
+}
+
+void gl_bindident(void) {
+    if (mgl_state.matrix_mode == GL_MODELVIEW) {
+        mgl_state.model = gl_identity();
+    } else if (mgl_state.matrix_mode == GL_PROJECTION) {
+        mgl_state.projection = gl_identity();
+    }
+}
+
+void gl_cullfaces(int enable) {
+    mgl_state.backface_culling = enable;
 }
 
 void gl_shutdown(void) {
-    if (gl_state.owns_color_buf && gl_state.color_buf) GL_FREE(gl_state.color_buf);
-    if (gl_state.owns_depth_buf && gl_state.depth_buf) GL_FREE(gl_state.depth_buf);
-    gl_state.color_buf = NULL;
-    gl_state.depth_buf = NULL;
+    if (mgl_state.owns_color_buf && mgl_state.color_buf) GL_FREE(mgl_state.color_buf);
+    if (mgl_state.owns_depth_buf && mgl_state.depth_buf) GL_FREE(mgl_state.depth_buf);
+    mgl_state.color_buf = NULL;
+    mgl_state.depth_buf = NULL;
 }
 
 #endif  // GL_IMPLEMENTATION
