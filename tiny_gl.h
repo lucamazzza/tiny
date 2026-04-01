@@ -49,13 +49,13 @@ extern "C" {
 // Basic usage:
 //   uint32_t framebuffer[640 * 480];
 //   gl_init(640, 480, framebuffer, NULL);
-//   
+//
 //   // Set up 3D view
 //   gl_state.projection = gl_perspective(45.0f, 640.0f/480.0f, 0.1f, 100.0f);
 //   gl_state.view = gl_lookat((gl_vec3){0,0,5}, (gl_vec3){0,0,0}, (gl_vec3){0,1,0});
-//   
+//
 //   gl_clear(0x000000FF);  // Clear to black
-//   
+//
 //   // Draw red triangle
 //   gl_begin(GL_TRIANGLES);
 //   gl_color_3f(1.0f, 0.0f, 0.0f);
@@ -63,7 +63,7 @@ extern "C" {
 //   gl_vertex_3f(-1.0f, -1.0f, 0.0f);
 //   gl_vertex_3f( 1.0f, -1.0f, 0.0f);
 //   gl_end();
-//   
+//
 //   // framebuffer now contains the rendered triangle
 //   gl_shutdown();
 //
@@ -84,7 +84,7 @@ extern "C" {
 //   - Simple 3D rendering in games/demos where GPU isn't available
 //   - Software fallback rendering
 //   - Embedded systems without GPU support
-//   
+//
 //   The API intentionally mimics early OpenGL to make it familiar to graphics
 //   programmers. All rendering is done in software using barycentric coordinate
 //   triangle rasterization with depth testing.
@@ -102,7 +102,7 @@ extern "C" {
 //   - gl_init(w, h, my_color_buf, my_depth_buf)  // Use provided buffers
 //   - gl_init(w, h, NULL, NULL)                  // Library allocates buffers
 //   - gl_init(w, h, my_color_buf, NULL)         // Mix of both
-//   
+//
 //   Call gl_shutdown() to free any library-allocated memory.
 //   User-provided buffers are never freed by the library.
 
@@ -128,11 +128,11 @@ extern "C" {
 
 // Render Mode macros
 #define GL_TRIANGLES 0
-#define GL_LINES     1
-#define GL_POINTS    2
+#define GL_LINES 1
+#define GL_POINTS 2
 
 // Matrix Mode macros
-#define GL_MODELVIEW  0
+#define GL_MODELVIEW 0
 #define GL_PROJECTION 1
 
 // Culling macros
@@ -146,48 +146,48 @@ extern "C" {
 
 typedef struct {
     union {
-      float m[9];
-      struct {
-        float v0, v1, v2;
-        float v3, v4, v5;
-        float v6, v7, v8;
-      };
+        float m[9];
+        struct {
+            float v0, v1, v2;
+            float v3, v4, v5;
+            float v6, v7, v8;
+        };
     };
 } gl_mat3;
 
 typedef struct {
     union {
-      float m[16];
-      struct {
-        float v0, v1, v2, v3;
-        float v4, v5, v6, v7;
-        float v8, v9, v10, v11;
-        float v12, v13, v14, v15;
-      };
+        float m[16];
+        struct {
+            float v0, v1, v2, v3;
+            float v4, v5, v6, v7;
+            float v8, v9, v10, v11;
+            float v12, v13, v14, v15;
+        };
     };
 } gl_mat4;
 
 typedef struct {
     union {
-      float v[3];
-      struct {
-        float x, y, z;
-      };
-      struct {
-        float r, g, b;
-      };
+        float v[3];
+        struct {
+            float x, y, z;
+        };
+        struct {
+            float r, g, b;
+        };
     };
 } gl_vec3;
 
 typedef struct {
     union {
-      float v[4];
-      struct {
-        float x, y, z, w;
-      };
-      struct {
-        float r, g, b, a;
-      };
+        float v[4];
+        struct {
+            float x, y, z, w;
+        };
+        struct {
+            float r, g, b, a;
+        };
     };
 } gl_vec4;
 
@@ -229,22 +229,22 @@ void gl_shutdown(void);
 static struct {
     uint32_t *color_buf;
     float    *depth_buf;
-    int      width, height;
-    gl_mat4  model;
-    gl_mat4  view;
-    gl_mat4  projection;
-    uint32_t clear_color;
-    uint32_t cur_color;
-    gl_vec4  vertex_cache[3];
-    int      vertex_count;
-    int      primitive_type;
-    int      owns_color_buf, owns_depth_buf;
-    int      matrix_mode;
-    gl_mat4  model_stack[GL_MATRIX_STACK_DEPTH];
-    gl_mat4  projection_stack[GL_MATRIX_STACK_DEPTH];
-    int      model_stack_ptr;
-    int      projection_stack_ptr;
-    int      backface_culling;
+    int       width, height;
+    gl_mat4   model;
+    gl_mat4   view;
+    gl_mat4   projection;
+    uint32_t  clear_color;
+    uint32_t  cur_color;
+    gl_vec4   vertex_cache[3];
+    int       vertex_count;
+    int       primitive_type;
+    int       owns_color_buf, owns_depth_buf;
+    int       matrix_mode;
+    gl_mat4   model_stack[GL_MATRIX_STACK_DEPTH];
+    gl_mat4   projection_stack[GL_MATRIX_STACK_DEPTH];
+    int       model_stack_ptr;
+    int       projection_stack_ptr;
+    int       backface_culling;
 } mgl_state;
 
 static gl_vec4 mgl_transform_vert(float x, float y, float z) {
@@ -269,17 +269,17 @@ inline static float mgl_edge_func(gl_vec4 a, gl_vec4 b, float px, float py) {
 }
 
 static void mgl_draw_line(gl_vec4 v0, gl_vec4 v1) {
-    int x0 = (int)v0.x, y0 = (int)v0.y;
-    int x1 = (int)v1.x, y1 = (int)v1.y;
+    int x0 = (int) v0.x, y0 = (int) v0.y;
+    int x1 = (int) v1.x, y1 = (int) v1.y;
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     int err = dx + dy, e2;
-    
+
     for (;;) {
         if (x0 >= 0 && x0 < mgl_state.width && y0 >= 0 && y0 < mgl_state.height) {
-            float t = (dx != 0) ? (float)(x0 - (int)v0.x) / (float)dx : 0.0f;
-            float z = v0.z + t * (v1.z - v0.z);
-            int idx = y0 * mgl_state.width + x0;
+            float t   = (dx != 0) ? (float) (x0 - (int) v0.x) / (float) dx : 0.0f;
+            float z   = v0.z + t * (v1.z - v0.z);
+            int   idx = y0 * mgl_state.width + x0;
             if (z < mgl_state.depth_buf[idx]) {
                 mgl_state.depth_buf[idx] = z;
                 mgl_state.color_buf[idx] = mgl_state.cur_color;
@@ -287,14 +287,20 @@ static void mgl_draw_line(gl_vec4 v0, gl_vec4 v1) {
         }
         if (x0 == x1 && y0 == y1) break;
         e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
+        if (e2 >= dy) {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y0 += sy;
+        }
     }
 }
 
 static void mgl_draw_point(gl_vec4 v) {
-    int x = (int)v.x;
-    int y = (int)v.y;
+    int x = (int) v.x;
+    int y = (int) v.y;
     if (x >= 0 && x < mgl_state.width && y >= 0 && y < mgl_state.height) {
         int idx = y * mgl_state.width + x;
         if (v.z < mgl_state.depth_buf[idx]) {
@@ -309,25 +315,27 @@ void mgl_rasterize_triangle(gl_vec4 v0, gl_vec4 v1, gl_vec4 v2) {
         float area = mgl_edge_func(v0, v1, v2.x, v2.y);
         if (area <= 0) return;
     }
-    int min_x = (int)fminf(v0.x, fminf(v1.x, v2.x));
-    int max_x = (int)fmaxf(v0.x, fmaxf(v1.x, v2.x));
-    int min_y = (int)fminf(v0.y, fminf(v1.y, v2.y));
-    int max_y = (int)fmaxf(v0.y, fmaxf(v1.y, v2.y));
-    if (min_x < 0) min_x = 0; if (max_x >= mgl_state.width)  max_x = mgl_state.width  - 1;
-    if (min_y < 0) min_y = 0; if (max_y >= mgl_state.height) max_y = mgl_state.height - 1;
+    int min_x = (int) fminf(v0.x, fminf(v1.x, v2.x));
+    int max_x = (int) fmaxf(v0.x, fmaxf(v1.x, v2.x));
+    int min_y = (int) fminf(v0.y, fminf(v1.y, v2.y));
+    int max_y = (int) fmaxf(v0.y, fmaxf(v1.y, v2.y));
+    if (min_x < 0) min_x = 0;
+    if (max_x >= mgl_state.width) max_x = mgl_state.width - 1;
+    if (min_y < 0) min_y = 0;
+    if (max_y >= mgl_state.height) max_y = mgl_state.height - 1;
     float area = mgl_edge_func(v0, v1, v2.x, v2.y);
     if (area == 0) return;
     if (fabs(area) < 1e-6f) return;
     for (int y = min_y; y <= max_y; ++y) {
         for (int x = min_x; x <= max_x; ++x) {
-            float px = (float)x + 0.5f;
-            float py = (float)y + 0.5f;
+            float px = (float) x + 0.5f;
+            float py = (float) y + 0.5f;
             float w0 = mgl_edge_func(v1, v2, px, py) / area;
             float w1 = mgl_edge_func(v2, v0, px, py) / area;
             float w2 = mgl_edge_func(v0, v1, px, py) / area;
             if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-                float z = w0 * v0.z + w1 * v1.z + w2 * v2.z;
-                int idx = y * mgl_state.width + x;
+                float z   = w0 * v0.z + w1 * v1.z + w2 * v2.z;
+                int   idx = y * mgl_state.width + x;
                 if (z < mgl_state.depth_buf[idx]) {
                     mgl_state.depth_buf[idx] = z;
                     mgl_state.color_buf[idx] = mgl_state.cur_color;
@@ -349,10 +357,10 @@ gl_mat4 gl_identity(void) {
 }
 
 gl_mat4 gl_mul4(gl_mat4 a, gl_mat4 b) {
-    gl_mat4 res;
+    gl_mat4      res;
     const float *A = a.m;
     const float *B = b.m;
-    float *R       = res.m;
+    float       *R = res.m;
     for (int i = 0; i < 4; i++) {
         float ai0 = A[i * 4 + 0], ai1 = A[i * 4 + 1], ai2 = A[i * 4 + 2], ai3 = A[i * 4 + 3];
         R[i * 4 + 0] = ai0 * B[0] + ai1 * B[4] + ai2 * B[8] + ai3 * B[12];
@@ -364,10 +372,10 @@ gl_mat4 gl_mul4(gl_mat4 a, gl_mat4 b) {
 }
 
 gl_mat3 gl_mul3(gl_mat3 a, gl_mat3 b) {
-    gl_mat3 res;
+    gl_mat3      res;
     const float *A = a.m;
     const float *B = b.m;
-    float *R       = res.m;
+    float       *R = res.m;
     for (int i = 0; i < 3; i++) {
         float ai0 = A[i * 3 + 0], ai1 = A[i * 3 + 1], ai2 = A[i * 3 + 2];
         R[i * 3 + 0] = ai0 * B[0] + ai1 * B[3] + ai2 * B[6];
@@ -378,46 +386,54 @@ gl_mat3 gl_mul3(gl_mat3 a, gl_mat3 b) {
 }
 
 gl_mat4 gl_perspective(float fov, float aspect, float near, float far) {
-    gl_mat4 res        = {0};
-    float tan_half_fov = tanf((fov * 3.14159265f / 180.0f) / 2.0f);
-    res.m[0]           = 1.0f / (aspect * tan_half_fov);
-    res.m[5]           = 1.0f / tan_half_fov;
-    res.m[10]          = -(far + near) / (far - near);
-    res.m[11]          = -1.0f;
-    res.m[14]          = -(2.0f * far * near) / (far - near);
+    gl_mat4 res          = {0};
+    float   tan_half_fov = tanf((fov * 3.14159265f / 180.0f) / 2.0f);
+    res.m[0]             = 1.0f / (aspect * tan_half_fov);
+    res.m[5]             = 1.0f / tan_half_fov;
+    res.m[10]            = -(far + near) / (far - near);
+    res.m[11]            = -1.0f;
+    res.m[14]            = -(2.0f * far * near) / (far - near);
     return res;
 }
 
 gl_mat4 gl_ortho(float left, float right, float bottom, float top, float near, float far) {
     gl_mat4 res = {0};
-    res.m[0]  = 2.0f / (right - left);
-    res.m[5]  = 2.0f / (top - bottom);
-    res.m[10] = -2.0f / (far - near);
-    res.m[12] = -(right + left) / (right - left);
-    res.m[13] = -(top + bottom) / (top - bottom);
-    res.m[14] = -(far + near) / (far - near);
-    res.m[15] = 1.0f;
+    res.m[0]    = 2.0f / (right - left);
+    res.m[5]    = 2.0f / (top - bottom);
+    res.m[10]   = -2.0f / (far - near);
+    res.m[12]   = -(right + left) / (right - left);
+    res.m[13]   = -(top + bottom) / (top - bottom);
+    res.m[14]   = -(far + near) / (far - near);
+    res.m[15]   = 1.0f;
     return res;
 }
 
 gl_mat4 gl_lookat(gl_vec3 eye, gl_vec3 center, gl_vec3 up) {
-    gl_vec3 f = gl_vec3_normalize(gl_vec3_sub(center, eye));
-    gl_vec3 s = gl_vec3_normalize(gl_vec3_cross(f, up));
-    gl_vec3 u = gl_vec3_cross(s, f);
+    gl_vec3 f      = gl_vec3_normalize(gl_vec3_sub(center, eye));
+    gl_vec3 s      = gl_vec3_normalize(gl_vec3_cross(f, up));
+    gl_vec3 u      = gl_vec3_cross(s, f);
     gl_mat4 result = gl_identity();
-    result.v0 =  s.x; result.v4 =  s.y; result.v8  =  s.z;
-    result.v1 =  u.x; result.v5 =  u.y; result.v9  =  u.z;
-    result.v2 = -f.x; result.v6 = -f.y; result.v10 = -f.z;
-    result.v12 = -gl_vec3_dot(s, eye);
-    result.v13 = -gl_vec3_dot(u, eye);
-    result.v14 =  gl_vec3_dot(f, eye);
+    result.v0      = s.x;
+    result.v4      = s.y;
+    result.v8      = s.z;
+    result.v1      = u.x;
+    result.v5      = u.y;
+    result.v9      = u.z;
+    result.v2      = -f.x;
+    result.v6      = -f.y;
+    result.v10     = -f.z;
+    result.v12     = -gl_vec3_dot(s, eye);
+    result.v13     = -gl_vec3_dot(u, eye);
+    result.v14     = gl_vec3_dot(f, eye);
     return result;
 }
 
 gl_vec3 gl_vec3_normalize(gl_vec3 v) {
     float len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
     if (len > 0.0f) {
-        v.x /= len; v.y /= len; v.z /= len;
+        v.x /= len;
+        v.y /= len;
+        v.z /= len;
     }
     return v;
 }
@@ -425,7 +441,7 @@ gl_vec3 gl_vec3_normalize(gl_vec3 v) {
 gl_vec3 gl_vec3_cross(gl_vec3 a, gl_vec3 b) {
     gl_vec3 result;
     result.x = a.y * b.z - a.z * b.y;
-    result.y = a.z * b.x - a.x * b.z;  
+    result.y = a.z * b.x - a.x * b.z;
     result.z = a.x * b.y - a.y * b.x;
     return result;
 }
@@ -438,37 +454,35 @@ gl_vec3 gl_vec3_sub(gl_vec3 a, gl_vec3 b) {
     return result;
 }
 
-float gl_vec3_dot(gl_vec3 a, gl_vec3 b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
+float gl_vec3_dot(gl_vec3 a, gl_vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
 void gl_init(int width, int height, void *color_buf, void *depth_buf) {
-    mgl_state.width  = width;
-    mgl_state.height = height;
-    mgl_state.vertex_count = 0;
+    mgl_state.width          = width;
+    mgl_state.height         = height;
+    mgl_state.vertex_count   = 0;
     mgl_state.primitive_type = GL_TRIANGLES;
     if (color_buf) {
-        mgl_state.color_buf = (uint32_t*)color_buf;
+        mgl_state.color_buf      = (uint32_t *) color_buf;
         mgl_state.owns_color_buf = 0;
     } else {
-        mgl_state.color_buf = (uint32_t*)GL_MALLOC(width * height * sizeof(uint32_t));
+        mgl_state.color_buf      = (uint32_t *) GL_MALLOC(width * height * sizeof(uint32_t));
         mgl_state.owns_color_buf = 1;
     }
     if (depth_buf) {
-        mgl_state.depth_buf = (float*)depth_buf;
+        mgl_state.depth_buf      = (float *) depth_buf;
         mgl_state.owns_depth_buf = 0;
     } else {
-        mgl_state.depth_buf = (float*)GL_MALLOC(width * height * sizeof(float));
+        mgl_state.depth_buf      = (float *) GL_MALLOC(width * height * sizeof(float));
         mgl_state.owns_depth_buf = 1;
     }
-    mgl_state.model      = gl_identity();
-    mgl_state.view       = gl_identity();
-    mgl_state.projection = gl_identity();
-    mgl_state.cur_color  = 0xFFFFFFFF;
-    mgl_state.matrix_mode = GL_MODELVIEW;
-    mgl_state.model_stack_ptr = 0;
+    mgl_state.model                = gl_identity();
+    mgl_state.view                 = gl_identity();
+    mgl_state.projection           = gl_identity();
+    mgl_state.cur_color            = 0xFFFFFFFF;
+    mgl_state.matrix_mode          = GL_MODELVIEW;
+    mgl_state.model_stack_ptr      = 0;
     mgl_state.projection_stack_ptr = 0;
-    mgl_state.backface_culling = 0;
+    mgl_state.backface_culling     = 0;
 }
 
 void gl_clear(unsigned int color) {
@@ -493,33 +507,25 @@ void gl_vertex_3f(float x, float y, float z) {
     }
 }
 
-void gl_vertex_3fv(gl_vec3 v) {
-    gl_vertex_3f(v.x, v.y, v.z);
-}
+void gl_vertex_3fv(gl_vec3 v) { gl_vertex_3f(v.x, v.y, v.z); }
 
 void gl_color_3f(float r, float g, float b) {
-    uint8_t ir = (uint8_t)(r * 255.0f);
-    uint8_t ig = (uint8_t)(g * 255.0f);
-    uint8_t ib = (uint8_t)(b * 255.0f);
+    uint8_t ir          = (uint8_t) (r * 255.0f);
+    uint8_t ig          = (uint8_t) (g * 255.0f);
+    uint8_t ib          = (uint8_t) (b * 255.0f);
     mgl_state.cur_color = (0xFF << 24) | (ir << 16) | (ig << 8) | ib;
 }
 
-void gl_color_3fv(gl_vec3 c) {
-    gl_color_3f(c.r, c.g, c.b);
-}
+void gl_color_3fv(gl_vec3 c) { gl_color_3f(c.r, c.g, c.b); }
 
 void gl_begin(int prim_type) {
     mgl_state.primitive_type = prim_type;
-    mgl_state.vertex_count = 0;
+    mgl_state.vertex_count   = 0;
 }
 
-void gl_end(void) {
-    mgl_state.vertex_count = 0;
-}
+void gl_end(void) { mgl_state.vertex_count = 0; }
 
-void gl_matmode(int mode) {
-    mgl_state.matrix_mode = mode;
-}
+void gl_matmode(int mode) { mgl_state.matrix_mode = mode; }
 
 void gl_bindmat(void) {
     if (mgl_state.matrix_mode == GL_MODELVIEW) {
@@ -553,9 +559,7 @@ void gl_bindident(void) {
     }
 }
 
-void gl_cullfaces(int enable) {
-    mgl_state.backface_culling = enable;
-}
+void gl_cullfaces(int enable) { mgl_state.backface_culling = enable; }
 
 void gl_shutdown(void) {
     if (mgl_state.owns_color_buf && mgl_state.color_buf) GL_FREE(mgl_state.color_buf);
