@@ -1,5 +1,5 @@
-/* tiny_gl - v0.1 - public domain graphics library - https://mazluc.ch/tiny
-                                  no warranty implied; use at your own risk
+/* tiny_gl - v1.00 - public domain graphics library - https://mazluc.ch/tiny
+                                   no warranty implied; use at your own risk
 
    Do this:
       #define GL_IMPLEMENTATION
@@ -9,10 +9,21 @@
    // It should look like this:
    #include ...
    #define GL_IMPLEMENTATION
-   #include "gl.h"
+   #include "tiny_gl.h"
 
    QUICK NOTES:
-      ...
+
+      Primarly of interest to embedded developers and generally to developers
+         who need a simple Graphics Library to generate 2D/3D renders for 
+         their firmwares basic interface
+
+      Supports basic OpenGL-Style operations:
+         Matrix stack management (bind/unbind matrices)
+         Face Culling
+         Perspective/Orthographic computations
+         Matrix/Vector wrappers
+         Triangle/Line/Point rendering
+
       Full documentation under DOCUMENTATION below.
 
    LICENSE:
