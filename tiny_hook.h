@@ -41,6 +41,8 @@
 
    RECENT REVISION HISTORY:
 
+      1.00  (2026-04-03) first release
+
       See end of file for full revision history.
 
    ============================    Contributors    =========================
@@ -133,6 +135,7 @@ extern "C" {
 /*
    Revision History:
 
+      1.00  (2026-04-03) first release
 */
 
 /*
