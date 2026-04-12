@@ -4,7 +4,7 @@
 
 </p>
 
-> Single-file public domain libraries for C/C++
+Single-file public domain libraries for C/C++
 
 ## FAQ
 
