@@ -136,10 +136,48 @@ static void json_skip_ws(json_parser *p) {
 
 }
 
+static int json_object_put(json_value *obj, char *key, json_value *val, json_allocator *a) {
+    if (obj->as.object.len == obj->as.object.cap) {
+        size_t new_cap = obj->as.object.cap ? obj->as.object.cap * 2 : 8;
+        void *np = json_alloc(a, new_cap * sizeof(*obj->as.object.items));
+        if (!np) return 0;
+        if (obj->as.object.items) {
+            memcpy(np, obj->as.object.items, obj->as.object.len * sizeof(*obj->as.object.items));
+            json_dealloc(a, obj->as.object.items);
+        }
+        obj->as.object.items = (typeof(obj->as.object.items))np;
+        obj->as.object.cap = new_cap;
+    }
+    obj->as.object.items[obj->as.object.len].key = key;
+    obj->as.object.items[obj->as.object.len].val = val;
+    obj->as.object.len++;
+    return 1;
+}
+
+static int json_array_push(json_value *arr, json_value *item, json_allocator *a) {
+    if (!arr || arr->type != JSON_ARRAY || !item) return 0;
+    if (arr->as.array.len == arr->as.array.cap) {
+        size_t new_cap = arr->as.array.cap ? arr->as.array.cap * 2 : 8;
+        json_value **new_items =
+            (json_value **)json_alloc(a, new_cap * sizeof(*new_items));
+        if (!new_items) return 0;
+        if (arr->as.array.items) {
+            memcpy(new_items,
+                   arr->as.array.items,
+                   arr->as.array.len * sizeof(*new_items));
+            json_dealloc(a, arr->as.array.items);
+        }
+        arr->as.array.items = new_items;
+        arr->as.array.cap = new_cap;
+    }
+    arr->as.array.items[arr->as.array.len++] = item;
+    return 1;
+}
+
 static json_value *json_parse_value(json_parser *p);
 
 static json_value *json_parse_array(json_parser *p) {
-    // NOTE: Assume first char is '['
+    /* NOTE: Assume first char is '[' */
     p->i++; p->col++;
     json_skip_ws(p);
     json_value *arr = json_new(JSON_ARRAY, p->a);
@@ -185,7 +223,7 @@ static json_value *json_parse_null(json_parser *p) {
 }
 
 static json_value *json_parse_number(json_parser *p) {
-    /* strict RFC8259 number grammar: -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)? */
+    /* SPEC: strict RFC8259 number grammar: -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)? */
     const char *start = p->s + p->i;
     char *end = NULL;
     if (start[0] == '-') p->i++, p->col++;
@@ -209,6 +247,90 @@ static json_value *json_parse_number(json_parser *p) {
     v->as.number = strtod(start, &end);
     if (end != p->s + p->i) { json_free(v, p->a); return json_fail(p, "invalid number"); }
     return v;
+}
+
+static json_value *json_parse_string_value(json_parser *p) {
+    /* SPEC: parse quoted string, handle escapes + \uXXXX, build UTF-8 buffer */
+    char *buf = NULL; size_t len = 0, cap = 0;
+    if (p->s[p->i] != '"') return json_fail(p, "expected '\"'");
+    p->i++; p->col++;
+    while (p->s[p->i] && p->s[p->i] != '"') {
+        unsigned char c = (unsigned char)p->s[p->i++];
+        p->col++;
+        if (c == '\\') {
+            char e = p->s[p->i++]; p->col++;
+        } else {
+            if (c < 0x20) { json_dealloc(p->a, buf); return json_fail(p, "control char in string"); }
+        }
+    }
+    if (p->s[p->i] != '"') { json_dealloc(p->a, buf); return json_fail(p, "unterminated string"); }
+    p->i++; p->col++;
+    json_value *v = json_new(JSON_STRING, p->a);
+    if (!v) { json_dealloc(p->a, buf); return json_fail(p, "oom"); }
+    v->as.string.ptr = buf;
+    v->as.string.len = len;
+    return v;
+}
+
+static json_value *json_parse_object(json_parser *p) {
+    /* NOTE: assumes current token is '{' */
+    p->i++; p->col++;
+    json_skip_ws(p);
+    json_value *obj = json_new(JSON_OBJECT, p->a);
+    if (!obj) return json_fail(p, "oom");
+    if (p->s[p->i] == '}') {
+        p->i++; p->col++;
+        return obj;
+    }
+    for (;;) {
+        json_value *k = NULL, *v = NULL;
+        char *key = NULL;
+        if (p->s[p->i] != '"') {
+            json_free(obj, p->a);
+            return json_fail(p, "expected string key");
+        }
+        k = json_parse_string_value(p);
+        if (!k) { json_free(obj, p->a); return NULL; }
+        key = k->as.string.ptr;
+        k->as.string.ptr = NULL; /* transfer ownership */
+        json_free(k, p->a);
+        json_skip_ws(p);
+        if (p->s[p->i] != ':') {
+            json_dealloc(p->a, key);
+            json_free(obj, p->a);
+            return json_fail(p, "expected ':' after key");
+        }
+        p->i++; p->col++;
+        json_skip_ws(p);
+        v = json_parse_value(p);
+        if (!v) {
+            json_dealloc(p->a, key);
+            json_free(obj, p->a);
+            return NULL;
+        }
+        if (!json_object_put(obj, key, v, p->a)) {
+            json_dealloc(p->a, key);
+            json_free(v, p->a);
+            json_free(obj, p->a);
+            return json_fail(p, "oom");
+        }
+        json_skip_ws(p);
+        if (p->s[p->i] == ',') {
+            p->i++; p->col++;
+            json_skip_ws(p);
+            if (p->s[p->i] == '}') { /* strict JSON: no trailing comma */
+                json_free(obj, p->a);
+                return json_fail(p, "trailing comma not allowed");
+            }
+            continue;
+        }
+        if (p->s[p->i] == '}') {
+            p->i++; p->col++;
+            return obj;
+        }
+        json_free(obj, p->a);
+        return json_fail(p, "expected ',' or '}'");
+    }
 }
 
 static json_value *json_parse_value(json_parser *p) {
