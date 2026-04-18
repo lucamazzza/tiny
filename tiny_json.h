@@ -33,11 +33,42 @@
 #ifndef JSON_DEFINITIONS
 #define JSON_DEFINITIONS
 
+#include <cstddef>
+#include <cstring>
+#ifndef JSON_NO_STDLIB
+#include <stdlib.h>
+#endif
+
+#ifndef JSON_NO_STDDEF
+#include <stddef.h>
+#endif
+
+#ifndef JSON_NO_STRING
+#include <string.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// TODO: definition
+typedef enum { JSON_NULL, JSON_BOOL, JSON_NUMBER, JSON_STRING, JSON_ARRAY, JSON_OBJECT } json_type;
+
+typedef struct json_value json_value;
+typedef struct { int line, col; const char *msg; } json_error;
+typedef void *(*json_malloc_fn)(size_t, void *);
+typedef void  (*json_free_fn)(void *, void *);
+
+typedef struct {
+    json_malloc_fn malloc_fn;
+    json_free_fn free_fn;
+    void *user;
+    json_error err;
+} json_allocator;
+
+json_value *json_parse(const char *src, json_allocator *a);
+char *json_stringify(const json_value *v, int flags, json_allocator *a);
+void json_free(json_value *v, json_allocator *a);
+void json_free_string(char *s, json_allocator *a);
 
 #ifdef __cplusplus
 }
@@ -45,9 +76,185 @@ extern "C" {
 
 #endif
 
+#define JSON_IMPLEMENTATION
 #ifdef JSON_IMPLEMENTATION
 
-// TODO: implementation
+struct json_value {
+    json_type type;
+    union {
+        double number;
+        int boolean;
+        struct { char *ptr; size_t len; } string;
+        struct { struct json_value **items; size_t len, cap; } array;
+        struct {
+            struct { char *key; struct json_value *val; } *items;
+            size_t len, cap;
+        } object;
+    } as;
+};
+
+typedef struct {
+    const char *s;
+    size_t i, line, col;
+    json_allocator *a;
+} json_parser;
+
+static void *json_alloc(json_allocator *a, size_t n) {
+    if (a && a->malloc_fn) return a->malloc_fn(n, a->user);
+    return malloc(n);
+}
+
+static void json_dealloc(json_allocator* a, void *p) {
+    if (!p) return;
+    if (a && a->free_fn) a->free_fn(p, a->user);
+    else free(p);
+}
+
+static json_value *json_new(json_type type, json_allocator *a) {
+    json_value *v = (json_value*)json_alloc(a, sizeof(*v));
+    if (!v) return NULL;
+    memset(v, 0, sizeof(*v));
+    v->type = type;
+    return v;
+}
+
+static json_value *json_fail(json_parser *p, const char *msg) {
+    if (p->a) {
+        p->a->err.line = (int)p->line;
+        p->a->err.col = (int)p->col;
+        p->a->err.msg = msg;
+    }
+    return NULL;
+}
+
+static void json_skip_ws(json_parser *p) {
+    while (p->s[p->i] == ' ' || p->s[p->i] == '\n' || p->s[p->i] == '\r' || p->s[p->i] == '\t') {
+        if (p->s[p->i] == '\n') { p->line++; p->col = 1; }
+        else p->col++;
+        p->i++;
+    }
+
+}
+
+static json_value *json_parse_value(json_parser *p);
+
+static json_value *json_parse_array(json_parser *p) {
+    // NOTE: Assume first char is '['
+    p->i++; p->col++;
+    json_skip_ws(p);
+    json_value *arr = json_new(JSON_ARRAY, p->a);
+    if (!arr) return NULL;
+    if (p->s[p->i] == ']') { p->i++; p->col++; return arr; }
+    for (;;) {
+        json_value *v = json_parse_value(p);
+        if (!v || !json_array_push(arr, v, p->a)) return json_fail(p, "invalid array item");
+        json_skip_ws(p);
+        if (p->s[p->i] == ',') {
+            p->i++; p->col++;
+            json_skip_ws(p);
+            if (p->s[p->i] == ']') return json_fail(p, "trailing comma not allowed");
+            continue;
+        }
+        if (p->s[p->i] == ']') { p->i++; p->col++; return arr; }
+        return json_fail(p, "expected ',' or ']'");
+    }
+}
+
+static json_value *json_parse_true(json_parser *p) {
+    if (strncmp(p->s + p->i, "true", 4) != 0) return json_fail(p, "invalid literal");
+    p->i += 4; p->col += 4;
+    json_value *v = json_new(JSON_BOOL, p->a);
+    if (!v) return json_fail(p, "oom");
+    v->as.boolean = 1;
+    return v;
+}
+
+static json_value *json_parse_false(json_parser *p) {
+    if (strncmp(p->s + p->i, "false", 5) != 0) return json_fail(p, "invalid literal");
+    p->i += 4; p->col += 4;
+    json_value *v = json_new(JSON_BOOL, p->a);
+    if (!v) return json_fail(p, "oom");
+    v->as.boolean = 0;
+    return v;
+}
+
+static json_value *json_parse_null(json_parser *p) {
+    if (strncmp(p->s + p->i, "null", 4) != 0) return json_fail(p, "invalid literal");
+    p->i += 4; p->col += 4;
+    return json_new(JSON_NULL, p->a);
+}
+
+static json_value *json_parse_number(json_parser *p) {
+    /* strict RFC8259 number grammar: -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)? */
+    const char *start = p->s + p->i;
+    char *end = NULL;
+    if (start[0] == '-') p->i++, p->col++;
+    if (p->s[p->i] == '0') { p->i++; p->col++; }
+    else if (p->s[p->i] >= '1' && p->s[p->i] <= '9') {
+        while (p->s[p->i] >= '0' && p->s[p->i] <= '9') p->i++, p->col++;
+    } else return json_fail(p, "invalid number");
+    if (p->s[p->i] == '.') {
+        p->i++; p->col++;
+        if (!(p->s[p->i] >= '0' && p->s[p->i] <= '9')) return json_fail(p, "invalid fracion");
+        while (p->s[p->i] >= '0' && p->s[p->i] <= '9') p->i++, p->col++;
+    }
+    if (p->s[p->i] == 'e' || p->s[p->i] == 'E') {
+        p->i++; p->col++;
+        if (p->s[p->i] == '+' || p->s[p->i] == '-') p->i++, p->col++;
+        if (!(p->s[p->i] >= '0' && p->s[p->i] <= '9')) return json_fail(p, "invalid exponent");
+        while (p->s[p->i] >= '0' && p->s[p->i] <= '9') p->i++, p->col++;
+    }
+    json_value *v = json_new(JSON_NUMBER, p->a);
+    if(!v) return json_fail(p, "oom");
+    v->as.number = strtod(start, &end);
+    if (end != p->s + p->i) { json_free(v, p->a); return json_fail(p, "invalid number"); }
+    return v;
+}
+
+static json_value *json_parse_value(json_parser *p) {
+    json_skip_ws(p);
+    switch(p->s[p->i]) {
+        case '{': return json_parse_object(p);
+        case '[': return json_parse_array(p);
+        case '"': return json_parse_string_value(p);
+        case 't': return json_parse_true(p);
+        case 'f': return json_parse_false(p);
+        case 'n': return json_parse_null(p);
+        default:  return json_parse_number(p);
+    }
+}
+
+json_value *json_parse(const char *src, json_allocator *a) {
+    json_parser p = { src, 0, 1, 1, a };
+    json_value *root = json_parse_value(&p);
+    if (!root) return NULL;
+    json_skip_ws(&p);
+    if (src[p.i] != '\0') { json_free(root, a); return json_fail(&p, "extra characters after JSON value"); }
+    return root;
+}
+
+void json_free(json_value *v, json_allocator *a) {
+    size_t i;
+    if (!v) return;
+    switch (v->type) {
+        case JSON_STRING:
+            json_dealloc(a, v->as.string.ptr);
+            break;
+        case JSON_ARRAY:
+            for (i = 0; i < v->as.array.len; i++) json_free(v->as.array.items[i], a);
+            json_dealloc(a, v->as.array.items);
+            break;
+        case JSON_OBJECT:
+            for (i = 0; i < v->as.object.len; i++) {
+                json_dealloc(a, v->as.object.items[i].key);
+                json_free(v->as.object.items[i].val, a);
+            }
+            json_dealloc(a, v->as.object.items);
+            break;
+        default: /* null/bool/number */ break;
+    }
+    json_dealloc(a, v);
+}
 
 #endif
 
