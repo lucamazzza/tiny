@@ -76,7 +76,6 @@ void json_free_string(char *s, json_allocator *a);
 
 #endif
 
-#define JSON_IMPLEMENTATION
 #ifdef JSON_IMPLEMENTATION
 
 struct json_value {
