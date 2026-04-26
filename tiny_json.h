@@ -26,7 +26,7 @@
 
    ============================    Contributors    =========================
 
-   Structure:
+   Structure & Logic:
       Luca Mazza
 */
 
