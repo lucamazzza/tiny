@@ -11,16 +11,32 @@
    #include "tiny_json.h"
 
    QUICK NOTES:
-      
+
+      - Single-header JSON parser (DOM-style value tree)
+      - Strict JSON (RFC8259 style): no trailing commas
+      - Custom allocator hooks via json_allocator
+      - Error details returned in json_allocator.err (line, col, message)
+      - Parse output must be released with json_free(...)
 
    EXAMPLE:
-      
+
+      json_allocator a = {0};
+      json_value *root = json_parse("{\"name\":\"tiny\",\"ok\":true}", &a);
+      if (!root) {
+          // a.err.line, a.err.col, a.err.msg
+      } else {
+          json_free(root, &a);
+      }
+
+      Full documentation under DOCUMENTATION below.
 
    LICENSE:
 
       See end of file for license information.
 
    RECENT REVISION HISTORY:
+
+      1.00  first release
 
       See end of file for full revision history.
 
@@ -382,6 +398,7 @@ void json_free(json_value *v, json_allocator *a) {
 /*
    Revision History:
 
+      1.00  first release
 */
 
 /*
