@@ -71,6 +71,7 @@ Open an issue on the Github repository.
 |----------------------------|-------------------------------------------------|---------------------------------------|
 | [tiny_gl.h](tiny_gl.h)     | Software 3D Rasterizer, OpenGL-Style, No GPU    | Embedded Graphics, Rendering Fallback |
 | [tiny_hook.h](tiny_hook.h) | Callback/Event System, Lightweight, Macro-Based | Embedded Events, Simple Callbacks     |
+| [tiny_json.h](tiny_json.h) | JSON Parser                                     | JSON Data Parsing                     |
 
 ## Philosophy
 
