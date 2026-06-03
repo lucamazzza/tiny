@@ -49,8 +49,6 @@
 #ifndef JSON_DEFINITIONS
 #define JSON_DEFINITIONS
 
-#include <cstddef>
-#include <cstring>
 #ifndef JSON_NO_STDLIB
 #include <stdlib.h>
 #endif
